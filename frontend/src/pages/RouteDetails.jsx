@@ -4,14 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, ChevronDown, ChevronUp, Check, Circle, Clock, BookOpen, Wrench } from 'lucide-react';
 import {
   ReactFlow, Background, Controls, useNodesState, useEdgesState,
-  Handle, Position, MiniMap
+  Handle, Position
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Button } from '../components/common/Button';
 import { LoadingState, ErrorState } from '../components/common/States';
 import { Drawer } from '../components/common/Modal';
 import { routeService } from '../services/routeService';
-import { mockResources, mockProjects } from '../data/mockData';
+import { resourceService } from '../services/resourceService';
+import { projectService } from '../services/projectService';
 
 // Custom route node for React Flow
 function RouteNode({ data }) {
@@ -25,13 +26,13 @@ function RouteNode({ data }) {
 
   return (
     <div
-      onClick={() => data.onNodeClick(data)}
+      onClick={() => data.onNodeClick && data.onNodeClick(data)}
       className="cursor-pointer px-4 py-3 rounded-lg border transition-all"
       style={{
         minWidth: 160,
         backgroundColor: data.status === 'current' ? '#C89B5B10' : '#22221E',
         borderColor: color,
-        borderWidth: data.status === 'goal' ? 2 : 1,
+        borderWidth: data.isGoal ? 2 : 1,
       }}
     >
       <Handle type="target" position={Position.Top} style={{ borderColor: color, background: '#171714' }} />
@@ -61,37 +62,17 @@ function RouteNode({ data }) {
 
 const nodeTypes = { routeNode: RouteNode };
 
-const FLOW_NODES = [
-  { id: 'n1', type: 'routeNode', position: { x: 100, y: 0 }, data: { label: 'Python', status: 'completed' } },
-  { id: 'n2', type: 'routeNode', position: { x: 100, y: 100 }, data: { label: 'Statistics', status: 'completed' } },
-  { id: 'n3', type: 'routeNode', position: { x: 100, y: 200 }, data: { label: 'Machine Learning', status: 'current' } },
-  { id: 'n4', type: 'routeNode', position: { x: 100, y: 300 }, data: { label: 'Deep Learning', status: 'upcoming' } },
-  { id: 'n5', type: 'routeNode', position: { x: 100, y: 400 }, data: { label: 'LLM Fundamentals', status: 'upcoming' } },
-  { id: 'n6', type: 'routeNode', position: { x: 100, y: 500 }, data: { label: 'Embeddings', status: 'upcoming' } },
-  { id: 'n7', type: 'routeNode', position: { x: 100, y: 600 }, data: { label: 'Vector Database', status: 'upcoming' } },
-  { id: 'n8', type: 'routeNode', position: { x: 100, y: 700 }, data: { label: 'RAG', status: 'upcoming' } },
-  { id: 'n9', type: 'routeNode', position: { x: 100, y: 800 }, data: { label: 'AI Agents', status: 'upcoming' } },
-  { id: 'n10', type: 'routeNode', position: { x: 100, y: 900 }, data: { label: 'Deployment', status: 'upcoming', isGoal: true } },
-];
-
-const FLOW_EDGES = [
-  { id: 'e1-2', source: 'n1', target: 'n2', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e2-3', source: 'n2', target: 'n3', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e3-4', source: 'n3', target: 'n4', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e4-5', source: 'n4', target: 'n5', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e5-6', source: 'n5', target: 'n6', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e6-7', source: 'n6', target: 'n7', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e7-8', source: 'n7', target: 'n8', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e8-9', source: 'n8', target: 'n9', style: { stroke: '#383832', strokeWidth: 1 } },
-  { id: 'e9-10', source: 'n9', target: 'n10', style: { stroke: '#383832', strokeWidth: 1 } },
-];
-
-function StageAccordion({ stage, isExpanded, onToggle }) {
+function StageAccordion({ stage, isExpanded, onToggle, onContinue }) {
   const statusColor = {
     completed: '#8C9A7A',
     current: '#C89B5B',
     upcoming: '#77766F',
-  }[stage.status];
+  }[stage.status] || '#77766F';
+
+  const completedSkills = stage.completedSkills || stage.completed_skills || [];
+  const currentSkill = stage.currentSkill || stage.current_skill;
+  const upcomingSkills = stage.upcomingSkills || stage.upcoming_skills || [];
+  const estimatedMinutes = stage.estimatedMinutes || stage.estimated_minutes;
 
   return (
     <div className={`border rounded-xl overflow-hidden ${stage.status === 'current' ? 'border-[#C89B5B]/30' : 'border-[#383832]'}`}>
@@ -121,10 +102,10 @@ function StageAccordion({ stage, isExpanded, onToggle }) {
             className="overflow-hidden"
           >
             <div className="px-5 pb-5 border-t border-[#383832]">
-              {stage.completedSkills?.length > 0 && (
+              {completedSkills.length > 0 && (
                 <div className="mt-4">
                   <div className="text-[10px] text-[#8C9A7A] uppercase tracking-widest mb-2">Completed</div>
-                  {stage.completedSkills.map((s) => (
+                  {completedSkills.map((s) => (
                     <div key={s} className="flex items-center gap-2 py-1.5">
                       <Check size={12} className="text-[#8C9A7A]" />
                       <span className="text-sm text-[#AAA89F]">{s}</span>
@@ -132,24 +113,24 @@ function StageAccordion({ stage, isExpanded, onToggle }) {
                   ))}
                 </div>
               )}
-              {stage.currentSkill && (
+              {currentSkill && (
                 <div className="mt-4">
                   <div className="text-[10px] text-[#C89B5B] uppercase tracking-widest mb-2">Current</div>
                   <div className="flex items-center gap-2 py-1.5">
                     <ArrowRight size={12} className="text-[#C89B5B]" />
-                    <span className="text-sm text-[#F3F0E8]">{stage.currentSkill}</span>
-                    {stage.estimatedMinutes && (
+                    <span className="text-sm text-[#F3F0E8]">{currentSkill}</span>
+                    {estimatedMinutes ? (
                       <span className="text-xs text-[#77766F] flex items-center gap-1">
-                        <Clock size={10} />~{stage.estimatedMinutes} min
+                        <Clock size={10} />~{estimatedMinutes} min
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               )}
-              {stage.upcomingSkills?.length > 0 && (
+              {upcomingSkills.length > 0 && (
                 <div className="mt-4">
                   <div className="text-[10px] text-[#77766F] uppercase tracking-widest mb-2">Upcoming</div>
-                  {stage.upcomingSkills.map((s) => (
+                  {upcomingSkills.map((s) => (
                     <div key={s} className="flex items-center gap-2 py-1.5">
                       <Circle size={10} className="text-[#383832]" />
                       <span className="text-sm text-[#77766F]">{s}</span>
@@ -159,7 +140,9 @@ function StageAccordion({ stage, isExpanded, onToggle }) {
               )}
               {stage.status === 'current' && (
                 <div className="mt-5">
-                  <Button size="sm" icon={<ArrowRight size={13} />}>Continue Learning</Button>
+                  <Button size="sm" icon={<ArrowRight size={13} />} onClick={onContinue}>
+                    Continue Learning
+                  </Button>
                 </div>
               )}
             </div>
@@ -176,10 +159,14 @@ export default function RouteDetails() {
   const [route, setRoute] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedStage, setExpandedStage] = useState('stage-4');
+  const [expandedStage, setExpandedStage] = useState(null);
   const [view, setView] = useState('timeline');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerNode, setDrawerNode] = useState(null);
+  const [recommendedResources, setRecommendedResources] = useState([]);
+  const [recommendedProjects, setRecommendedProjects] = useState([]);
+
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -190,32 +177,80 @@ export default function RouteDetails() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     (async () => {
       try {
-        const data = await routeService.getRouteById(routeId);
-        setRoute(data);
+        const [routeData, resourcesData, projectsData] = await Promise.all([
+          routeService.getRouteById(routeId),
+          resourceService.getResources().catch(() => []),
+          projectService.getProjects().catch(() => []),
+        ]);
+        if (mounted) {
+          setRoute(routeData);
+          setRecommendedResources(resourcesData || []);
+          setRecommendedProjects(projectsData || []);
+          if (routeData?.stages?.length > 0) {
+            const curStage = routeData.stages.find((s) => s.status === 'current');
+            setExpandedStage(curStage?.id || routeData.stages[0].id);
+          }
+        }
       } catch (e) {
-        setError(e.message);
+        if (mounted) {
+          setError(e.message || 'Failed to load route details');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     })();
+    return () => {
+      mounted = false;
+    };
   }, [routeId]);
 
   useEffect(() => {
-    const enriched = FLOW_NODES.map((n) => ({
-      ...n,
-      data: { ...n.data, onNodeClick: handleNodeClick },
-    }));
-    setNodes(enriched);
-    setEdges(FLOW_EDGES);
-  }, [handleNodeClick]);
+    if (route?.stages && route.stages.length > 0) {
+      const generatedNodes = route.stages.map((stage, idx) => ({
+        id: stage.id || `stage-${idx}`,
+        type: 'routeNode',
+        position: { x: 100, y: idx * 100 },
+        data: {
+          label: stage.title,
+          status: stage.status,
+          stage,
+          isGoal: idx === route.stages.length - 1,
+          onNodeClick: handleNodeClick,
+        },
+      }));
+
+      const generatedEdges = [];
+      for (let i = 0; i < generatedNodes.length - 1; i++) {
+        generatedEdges.push({
+          id: `e-${generatedNodes[i].id}-${generatedNodes[i + 1].id}`,
+          source: generatedNodes[i].id,
+          target: generatedNodes[i + 1].id,
+          style: { stroke: '#383832', strokeWidth: 1 },
+        });
+      }
+      setNodes(generatedNodes);
+      setEdges(generatedEdges);
+    }
+  }, [route, handleNodeClick, setNodes, setEdges]);
 
   if (loading) return <LoadingState message="Loading your route..." />;
-  if (error) return <ErrorState message={error} />;
+  if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
+
+  const stagesList = route?.stages || [];
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
+      {isDemo && (
+        <div className="mb-6 px-4 py-2 bg-[#C89B5B]/10 border border-[#C89B5B]/40 rounded-lg text-xs text-[#C89B5B] flex items-center justify-between">
+          <span>DEMO MODE ACTIVE: Showing simulated route data.</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <div className="label mb-3">My Learning Route</div>
@@ -234,7 +269,7 @@ export default function RouteDetails() {
           <div className="text-base font-semibold text-[#F3F0E8]">{route?.title}</div>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-semibold text-[#C89B5B]">{route?.progress}%</div>
+          <div className="text-2xl font-semibold text-[#C89B5B]">{route?.progress ?? 0}%</div>
           <div className="text-xs text-[#77766F]">Complete</div>
         </div>
       </div>
@@ -242,9 +277,9 @@ export default function RouteDetails() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Stages', value: route?.totalStages || 7 },
-          { label: 'Skills', value: route?.totalSkills || 18 },
-          { label: 'Projects', value: route?.totalProjects || 6 },
+          { label: 'Stages', value: route?.totalStages ?? route?.total_stages ?? stagesList.length },
+          { label: 'Skills', value: route?.totalSkills ?? route?.total_skills ?? stagesList.length },
+          { label: 'Projects', value: route?.totalProjects ?? route?.total_projects ?? recommendedProjects.length },
         ].map((s) => (
           <div key={s.label} className="border border-[#383832] rounded-xl p-4 text-center">
             <div className="text-2xl font-semibold text-[#F3F0E8]">{s.value}</div>
@@ -272,34 +307,34 @@ export default function RouteDetails() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Left: stages */}
           <div className="lg:col-span-2 space-y-3">
-            {route?.stages.map((stage) => (
-              <StageAccordion
-                key={stage.id}
-                stage={stage}
-                isExpanded={expandedStage === stage.id}
-                onToggle={() => setExpandedStage(expandedStage === stage.id ? null : stage.id)}
-              />
-            ))}
-            {/* Milestone */}
-            <div className="border border-[#383832] border-dashed rounded-xl px-5 py-4">
-              <div className="flex items-center gap-3">
-                <Wrench size={14} className="text-[#C89B5B]" />
+            {stagesList.length === 0 ? (
+              <div className="border border-[#383832] rounded-xl p-8 text-center text-sm text-[#77766F]">
+                No stages found for this route.
+              </div>
+            ) : (
+              stagesList.map((stage) => (
+                <StageAccordion
+                  key={stage.id}
+                  stage={stage}
+                  isExpanded={expandedStage === stage.id}
+                  onToggle={() => setExpandedStage(expandedStage === stage.id ? null : stage.id)}
+                  onContinue={() => navigate('/resources')}
+                />
+              ))
+            )}
+
+            {/* Destination */}
+            {stagesList.length > 0 && (
+              <div className="border-2 border-[#C89B5B]/40 rounded-xl px-5 py-4 flex items-center gap-3">
+                <div className="w-4 h-4 rounded-full border-2 border-[#C89B5B] flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#C89B5B]" />
+                </div>
                 <div>
-                  <div className="text-[10px] text-[#C89B5B] uppercase tracking-widest font-semibold">Build Milestone</div>
-                  <div className="text-sm text-[#F3F0E8] mt-0.5">AI Recommendation Engine</div>
+                  <div className="text-[10px] text-[#C89B5B] uppercase tracking-widest font-semibold">Destination</div>
+                  <div className="text-sm font-semibold text-[#F3F0E8]">{route?.title}</div>
                 </div>
               </div>
-            </div>
-            {/* Destination */}
-            <div className="border-2 border-[#C89B5B]/40 rounded-xl px-5 py-4 flex items-center gap-3">
-              <div className="w-4 h-4 rounded-full border-2 border-[#C89B5B] flex items-center justify-center">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#C89B5B]" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[#C89B5B] uppercase tracking-widest font-semibold">Destination</div>
-                <div className="text-sm font-semibold text-[#F3F0E8]">{route?.title}</div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Right: resources & projects */}
@@ -309,18 +344,42 @@ export default function RouteDetails() {
                 <BookOpen size={12} /> Recommended Resources
               </div>
               <div className="space-y-2">
-                {mockResources.slice(0, 3).map((r) => (
+                {recommendedResources.slice(0, 4).map((r) => (
                   <button
                     key={r.id}
-                    onClick={() => navigate(`/resources/${r.id}`)}
+                    onClick={() => navigate('/resources')}
                     className="w-full text-left border border-[#383832] rounded-lg px-4 py-3 hover:border-[#C89B5B]/30 transition-colors cursor-pointer"
                   >
                     <div className="text-xs font-medium text-[#F3F0E8]">{r.title}</div>
-                    <div className="text-[10px] text-[#77766F] mt-1">{r.type} · {r.duration}</div>
+                    <div className="text-[10px] text-[#77766F] mt-1">
+                      {r.type || 'Course'} {r.level ? `· ${r.level}` : ''}
+                    </div>
                   </button>
                 ))}
+                {recommendedResources.length === 0 && (
+                  <div className="text-xs text-[#77766F] p-4 border border-[#383832] rounded-lg">
+                    No resources currently loaded.
+                  </div>
+                )}
               </div>
             </div>
+
+            {recommendedProjects.length > 0 && (
+              <div>
+                <div className="label mb-3 flex items-center gap-2">
+                  <Wrench size={12} /> Recommended Project
+                </div>
+                <div
+                  onClick={() => navigate('/projects')}
+                  className="border border-[#383832] rounded-lg px-4 py-3 cursor-pointer hover:border-[#C89B5B]/30 transition-colors"
+                >
+                  <div className="text-xs font-semibold text-[#F3F0E8]">{recommendedProjects[0].title}</div>
+                  <div className="text-[10px] text-[#77766F] mt-1">
+                    {recommendedProjects[0].difficulty} · {recommendedProjects[0].skills?.slice(0, 3).join(', ')}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -344,7 +403,7 @@ export default function RouteDetails() {
       )}
 
       {/* Node Drawer */}
-      <Drawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} title={drawerNode?.label || 'Skill Detail'}>
+      <Drawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} title={drawerNode?.label || 'Stage Detail'}>
         {drawerNode && (
           <div className="space-y-6">
             <div>
@@ -359,28 +418,35 @@ export default function RouteDetails() {
 
             {drawerNode.status !== 'completed' && (
               <div className="border border-[#C89B5B]/20 rounded-lg px-4 py-3">
-                <div className="label text-[#A96A5F] mb-1">Skill Gap</div>
-                <div className="text-sm text-[#AAA89F]">Estimated: 3 weeks to reach target proficiency</div>
+                <div className="label text-[#A96A5F] mb-1">Target Skill</div>
+                <div className="text-sm text-[#AAA89F]">Focus on mastering {drawerNode.label} for this stage.</div>
               </div>
             )}
 
             <div>
-              <div className="label mb-3">Recommended Courses</div>
-              {mockResources.slice(0, 2).map((r) => (
+              <div className="label mb-3">Recommended Resources</div>
+              {recommendedResources.slice(0, 2).map((r) => (
                 <div key={r.id} className="border border-[#383832] rounded-lg px-4 py-3 mb-2">
                   <div className="text-sm text-[#F3F0E8]">{r.title}</div>
-                  <div className="text-xs text-[#77766F] mt-0.5">{r.duration}</div>
+                  <div className="text-xs text-[#77766F] mt-0.5">{r.level || 'All levels'} · {r.type || 'Course'}</div>
                 </div>
               ))}
+              {recommendedResources.length === 0 && (
+                <div className="text-xs text-[#77766F]">No resources available.</div>
+              )}
             </div>
 
-            <div>
-              <div className="label mb-3">Recommended Project</div>
-              <div className="border border-[#383832] rounded-lg px-4 py-3">
-                <div className="text-sm text-[#F3F0E8]">Predictive Maintenance System</div>
-                <div className="text-xs text-[#77766F] mt-0.5">Intermediate · 6 hours</div>
+            {recommendedProjects.length > 0 && (
+              <div>
+                <div className="label mb-3">Recommended Project</div>
+                <div className="border border-[#383832] rounded-lg px-4 py-3">
+                  <div className="text-sm text-[#F3F0E8]">{recommendedProjects[0].title}</div>
+                  <div className="text-xs text-[#77766F] mt-0.5">
+                    {recommendedProjects[0].difficulty} · {recommendedProjects[0].estimatedHours || 6} hours
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             <Button fullWidth icon={<ArrowRight size={14} />} onClick={() => navigate('/resources')}>
               Start Learning

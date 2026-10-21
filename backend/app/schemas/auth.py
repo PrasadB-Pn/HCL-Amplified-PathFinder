@@ -1,73 +1,60 @@
-from pydantic import BaseModel, field_validator
+from __future__ import annotations
+
 from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
-    name: str
-    email: str
-    password: str
-    confirm_password: str
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
 
     @field_validator("name")
     @classmethod
-    def name_not_empty(cls, v: str) -> str:
+    def sanitize_name(cls, v: str) -> str:
         v = v.strip()
-
         if not v:
             raise ValueError("Name cannot be empty")
-
         return v
 
     @field_validator("email")
     @classmethod
-    def email_valid(cls, v: str) -> str:
+    def validate_email(cls, v: str) -> str:
         v = v.strip().lower()
-
-        if "@" not in v or "." not in v.split("@")[-1]:
-            raise ValueError("Please enter a valid email address")
-
+        if "@" not in v or "." not in v.split("@")[-1] or len(v) < 5:
+            raise ValueError("Please provide a valid email address")
         return v
 
     @field_validator("password")
     @classmethod
-    def password_length(cls, v: str) -> str:
+    def validate_password(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
-
-        # bcrypt has a maximum input size of 72 bytes
         if len(v.encode("utf-8")) > 72:
             raise ValueError("Password must be 72 bytes or fewer")
-
         return v
 
     @field_validator("confirm_password")
     @classmethod
     def passwords_match(cls, v: str, info) -> str:
-        if "password" in info.data:
-            if v != info.data["password"]:
-                raise ValueError("Passwords do not match")
-
-        # bcrypt has a maximum input size of 72 bytes
-        if len(v.encode("utf-8")) > 72:
-            raise ValueError("Password must be 72 bytes or fewer")
-
+        if "password" in info.data and v != info.data["password"]:
+            raise ValueError("Passwords do not match")
         return v
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., max_length=72)
 
     @field_validator("email")
     @classmethod
-    def email_normalise(cls, v: str) -> str:
+    def normalise_email(cls, v: str) -> str:
         return v.strip().lower()
 
 
-class AuthResponse(BaseModel):
-    token: str
-    user: "UserPublic"
-    onboarding_completed: bool = False
+class RefreshRequest(BaseModel):
+    refresh_token: Optional[str] = None
 
 
 class UserPublic(BaseModel):
@@ -77,3 +64,14 @@ class UserPublic(BaseModel):
     onboarding_completed: bool = False
     target_career: str = ""
     experience: str = "Intermediate"
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserPublic
+    onboarding_completed: bool = False
+    csrf_token: Optional[str] = None
+
+    @property
+    def access_token(self) -> str:
+        return self.token

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Check, Circle } from 'lucide-react';
 import { StatusBadge } from '../components/common/Badge';
-import { Button } from '../components/common/Button';
 import { LoadingState, ErrorState } from '../components/common/States';
 import { projectService } from '../services/projectService';
 

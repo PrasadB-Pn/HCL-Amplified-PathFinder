@@ -6,35 +6,32 @@ import { SkillIndicator } from '../components/common/ProgressBar';
 import { Button } from '../components/common/Button';
 import { LoadingState, ErrorState } from '../components/common/States';
 import { skillService } from '../services/skillService';
-import { mockSkillGaps } from '../data/mockData';
 
 const SKILL_CATEGORIES = ['Programming', 'Data', 'Machine Learning', 'AI / Deep Learning', 'MLOps'];
-
-const TARGET_SKILLS = [
-  { name: 'Python', current: 92, target: 90 },
-  { name: 'Statistics', current: 78, target: 80 },
-  { name: 'Machine Learning', current: 64, target: 85 },
-  { name: 'Model Evaluation', current: 48, target: 75 },
-  { name: 'Deep Learning', current: 31, target: 70 },
-  { name: 'MLOps', current: 18, target: 60 },
-];
 
 const PRIORITY_COLOR = { HIGH: '#A96A5F', UPCOMING: '#C89B5B', FUTURE: '#77766F' };
 
 export default function Skills() {
   const navigate = useNavigate();
   const [skills, setSkills] = useState([]);
+  const [skillGaps, setSkillGaps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
 
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
+
   useEffect(() => {
     (async () => {
       try {
-        const data = await skillService.getSkills();
-        setSkills(data);
+        const [skillsData, gapsData] = await Promise.all([
+          skillService.getSkills(),
+          skillService.getSkillGaps(),
+        ]);
+        setSkills(skillsData || []);
+        setSkillGaps(gapsData?.skill_gaps || []);
       } catch (e) {
-        setError(e.message);
+        setError(e.message || 'Unable to load skills');
       } finally {
         setLoading(false);
       }
@@ -53,12 +50,18 @@ export default function Skills() {
     return acc;
   }, {});
 
-  const strong = skills.filter((s) => s.status === 'strong');
-  const developing = skills.filter((s) => s.status === 'developing');
-  const needsAttention = skills.filter((s) => s.status === 'needs_attention');
+  const strong = skills.filter((s) => s.status === 'strong' || s.proficiency >= 75);
+  const developing = skills.filter((s) => s.status === 'developing' || (s.proficiency >= 50 && s.proficiency < 75));
+  const needsAttention = skills.filter((s) => s.status === 'needs_attention' || s.proficiency < 50);
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
+      {isDemo && (
+        <div className="mb-6 px-4 py-2 bg-[#C89B5B]/10 border border-[#C89B5B]/30 rounded-lg text-xs text-[#C89B5B]">
+          <strong>Demo Mode Active:</strong> Displaying simulated skills.
+        </div>
+      )}
+
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
         <div className="label mb-3">Skill Intelligence</div>
@@ -72,8 +75,12 @@ export default function Skills() {
           <div className="border border-[#383832] rounded-xl p-6">
             <div className="label mb-3">Your Current Profile</div>
             <p className="text-sm text-[#AAA89F] leading-relaxed mb-4">
-              Your strongest skills are <span className="text-[#F3F0E8]">Python, SQL and data handling</span>.
-              You're building the machine learning capabilities required for your AI / ML Engineer goal.
+              {strong.length > 0 ? (
+                <>Your strongest skills are <span className="text-[#F3F0E8]">{strong.slice(0, 3).map((s) => s.name).join(', ')}</span>. </>
+              ) : (
+                <>You are beginning your skill assessment. </>
+              )}
+              Tracking proficiency across core competencies for your career roadmap.
             </p>
             <div className="grid grid-cols-4 gap-4 pt-4 border-t border-[#383832]">
               {[
@@ -97,67 +104,54 @@ export default function Skills() {
             <div className="flex flex-wrap gap-2 mb-6">
               <button
                 onClick={() => setActiveCategory('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${activeCategory === 'all' ? 'bg-[#C89B5B] text-[#171714]' : 'bg-[#22221E] border border-[#383832] text-[#77766F] hover:text-[#F3F0E8]'}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  activeCategory === 'all'
+                    ? 'bg-[#C89B5B] text-[#171714]'
+                    : 'bg-[#22221E] border border-[#383832] text-[#77766F] hover:text-[#F3F0E8]'
+                }`}
               >
-                All
+                All Categories ({skills.length})
               </button>
               {SKILL_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${activeCategory === cat ? 'bg-[#C89B5B] text-[#171714]' : 'bg-[#22221E] border border-[#383832] text-[#77766F] hover:text-[#F3F0E8]'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    activeCategory === cat
+                      ? 'bg-[#C89B5B] text-[#171714]'
+                      : 'bg-[#22221E] border border-[#383832] text-[#77766F] hover:text-[#F3F0E8]'
+                  }`}
                 >
-                  {cat}
+                  {cat} ({grouped[cat]?.length || 0})
                 </button>
               ))}
             </div>
 
-            <div className="space-y-6">
-              {Object.entries(grouped).map(([cat, catSkills]) => (
-                catSkills.length > 0 && (
-                  <div key={cat}>
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-[#77766F] mb-3">{cat}</div>
-                    <div className="space-y-3">
-                      {catSkills.map((skill) => (
-                        <SkillIndicator
-                          key={skill.id}
-                          name={skill.name}
-                          value={skill.proficiency}
-                          color={skill.status === 'strong' ? '#8C9A7A' : skill.status === 'developing' ? '#C89B5B' : '#A96A5F'}
-                        />
-                      ))}
+            {/* Skill list */}
+            <div className="space-y-3">
+              {filtered.map((skill) => (
+                <div key={skill.id || skill.name} className="border border-[#383832] rounded-xl p-4 flex items-center justify-between">
+                  <div className="flex-1 mr-4">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-sm font-medium text-[#F3F0E8]">{skill.name}</span>
+                      <span className="text-xs text-[#AAA89F] font-semibold">{skill.proficiency}%</span>
                     </div>
+                    <SkillIndicator
+                      name=""
+                      value={skill.proficiency}
+                      color={skill.proficiency >= 75 ? '#8C9A7A' : skill.proficiency >= 50 ? '#C89B5B' : '#A96A5F'}
+                    />
                   </div>
-                )
-              ))}
-            </div>
-          </div>
-
-          {/* Current vs Target */}
-          <div>
-            <div className="label mb-4">Current vs Target</div>
-            <div className="border border-[#383832] rounded-xl overflow-hidden">
-              <div className="grid grid-cols-3 px-5 py-2.5 border-b border-[#383832] bg-[#22221E]">
-                <span className="text-[10px] text-[#77766F] uppercase tracking-wide">Skill</span>
-                <span className="text-[10px] text-[#77766F] uppercase tracking-wide text-center">Current</span>
-                <span className="text-[10px] text-[#77766F] uppercase tracking-wide text-center">Target</span>
-              </div>
-              {TARGET_SKILLS.map((s) => (
-                <div key={s.name} className="px-5 py-3 border-b border-[#383832] last:border-0">
-                  <div className="grid grid-cols-3 items-center mb-1.5">
-                    <span className="text-sm text-[#F3F0E8]">{s.name}</span>
-                    <span className="text-sm font-medium text-center" style={{ color: s.current >= s.target ? '#8C9A7A' : '#C89B5B' }}>{s.current}%</span>
-                    <span className="text-sm text-[#77766F] text-center">{s.target}%</span>
-                  </div>
-                  <SkillIndicator
-                    name=""
-                    value={s.current}
-                    target={s.target}
-                    showTarget
-                    color={s.current >= s.target ? '#8C9A7A' : s.current >= s.target * 0.7 ? '#C89B5B' : '#A96A5F'}
-                  />
+                  <span className="text-[10px] text-[#77766F] uppercase tracking-wide flex-shrink-0">
+                    {skill.category}
+                  </span>
                 </div>
               ))}
+              {filtered.length === 0 && (
+                <div className="p-6 text-center text-xs text-[#77766F] border border-[#383832] rounded-xl">
+                  No skills in this category.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -165,56 +159,64 @@ export default function Skills() {
         {/* Right column: Skill Gaps */}
         <div>
           <div className="label mb-4">Skill Gaps</div>
-          <div className="space-y-4">
-            {mockSkillGaps.map((gap) => (
-              <motion.div
-                key={gap.skill}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="border border-[#383832] rounded-xl p-5"
-                style={{ borderLeftColor: PRIORITY_COLOR[gap.priority], borderLeftWidth: 2 }}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="text-sm font-semibold text-[#F3F0E8]">{gap.skill}</div>
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-widest ml-2"
-                    style={{ color: PRIORITY_COLOR[gap.priority] }}
-                  >
-                    {gap.priority}
-                  </span>
-                </div>
-
-                <div className="space-y-2 mb-3">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#77766F]">Current</span>
-                    <span className="text-[#AAA89F]">{gap.current}%</span>
-                  </div>
-                  <div className="progress-track">
-                    <div className="progress-fill" style={{ width: `${gap.current}%`, backgroundColor: '#C89B5B' }} />
-                    <div
-                      className="absolute top-0 w-px h-full bg-[#A96A5F]/60"
-                      style={{ left: `${gap.required}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#77766F]">Required</span>
-                    <span className="text-[#AAA89F]">{gap.required}%</span>
-                  </div>
-                </div>
-
-                <div className="text-xs text-[#77766F] mb-3 leading-relaxed">{gap.reason}</div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  fullWidth
-                  onClick={() => navigate('/resources')}
-                  icon={<ArrowRight size={12} />}
+          {skillGaps.length === 0 ? (
+            <div className="border border-[#383832] rounded-xl p-5 text-center text-xs text-[#77766F]">
+              No active skill gaps detected for your current profile.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {skillGaps.map((gap) => (
+                <motion.div
+                  key={gap.skill}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="border border-[#383832] rounded-xl p-5"
+                  style={{ borderLeftColor: PRIORITY_COLOR[gap.priority] || '#C89B5B', borderLeftWidth: 2 }}
                 >
-                  Find Resources
-                </Button>
-              </motion.div>
-            ))}
-          </div>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="text-sm font-semibold text-[#F3F0E8]">{gap.skill}</div>
+                    <span
+                      className="text-[9px] font-bold uppercase tracking-widest ml-2"
+                      style={{ color: PRIORITY_COLOR[gap.priority] || '#C89B5B' }}
+                    >
+                      {gap.priority || 'HIGH'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 mb-3">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[#77766F]">Current</span>
+                      <span className="text-[#AAA89F]">{gap.current || 0}%</span>
+                    </div>
+                    <div className="progress-track">
+                      <div className="progress-fill" style={{ width: `${gap.current || 0}%`, backgroundColor: '#C89B5B' }} />
+                      <div
+                        className="absolute top-0 w-px h-full bg-[#A96A5F]/60"
+                        style={{ left: `${gap.required || 100}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[#77766F]">Required</span>
+                      <span className="text-[#AAA89F]">{gap.required || 100}%</span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-[#77766F] mb-3 leading-relaxed">
+                    {gap.reason || 'Critical prerequisite for your roadmap.'}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    fullWidth
+                    onClick={() => navigate('/resources')}
+                    icon={<ArrowRight size={12} />}
+                  >
+                    Find Resources
+                  </Button>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

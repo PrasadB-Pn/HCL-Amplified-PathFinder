@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, ArrowRight, BookOpen, Video, FileText, Code, FolderOpen, Star } from 'lucide-react';
+import { Search, ArrowRight, BookOpen, Video, FileText, Code, FolderOpen } from 'lucide-react';
 import { TypeBadge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { LoadingState, ErrorState, EmptyState } from '../components/common/States';
 import { resourceService } from '../services/resourceService';
 
 const TYPE_FILTERS = ['all', 'course', 'video', 'article', 'documentation', 'book', 'practice'];
-const PURPOSE_FILTERS = ['Recommended for you', 'Skill gap', 'Current stage', 'Upcoming stage', 'Revision'];
 
 const TYPE_ICON = {
   course: BookOpen,
@@ -99,7 +98,6 @@ export default function Resources() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [savedIds, setSavedIds] = useState(new Set());
 
   useEffect(() => {
     (async () => {

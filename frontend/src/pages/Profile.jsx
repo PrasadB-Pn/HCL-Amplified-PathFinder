@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Plus, X, Check } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Plus, X, Check, AlertCircle } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { profileService } from '../services/profileService';
 
@@ -27,7 +27,7 @@ function TagInput({ tags, setTags, placeholder, suggestions }) {
         {tags.map((t) => (
           <span key={t} className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#C89B5B]/10 border border-[#C89B5B]/30 text-[#C89B5B] text-xs rounded-full">
             {t}
-            <button onClick={() => setTags(tags.filter((x) => x !== t))} className="cursor-pointer">
+            <button type="button" onClick={() => setTags(tags.filter((x) => x !== t))} className="cursor-pointer">
               <X size={11} />
             </button>
           </span>
@@ -39,7 +39,7 @@ function TagInput({ tags, setTags, placeholder, suggestions }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(input); } }}
           placeholder={placeholder}
-          className="flex-1"
+          className="flex-1 bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
         />
         <button
           type="button"
@@ -54,6 +54,7 @@ function TagInput({ tags, setTags, placeholder, suggestions }) {
           {suggestions.filter((s) => !tags.includes(s)).map((s) => (
             <button
               key={s}
+              type="button"
               onClick={() => addTag(s)}
               className="px-2 py-0.5 text-[10px] bg-[#22221E] border border-[#383832] text-[#77766F] hover:text-[#F3F0E8] hover:border-[#C89B5B]/40 rounded cursor-pointer transition-colors"
             >
@@ -92,6 +93,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -110,9 +112,28 @@ export default function Profile() {
 
   const handleSubmit = async () => {
     setLoading(true);
-    await profileService.updateProfile(form);
-    setLoading(false);
-    navigate('/recommendation');
+    setError(null);
+    try {
+      const hours = parseInt(form.weeklyHours, 10) || 7;
+      await profileService.updateProfile({
+        name: form.name,
+        education: form.education,
+        branch: form.branch,
+        experience: form.experience,
+        skills: form.skills,
+        interests: form.interests,
+        projects: form.projects,
+        certifications: form.certifications,
+        target_career: form.targetCareer,
+        weekly_learning_hours: hours,
+        onboarding_completed: true,
+      });
+      navigate('/recommendation');
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -124,6 +145,13 @@ export default function Profile() {
           <h1 className="font-serif text-3xl text-[#F3F0E8] mb-2">Tell us where you're starting.</h1>
           <p className="text-sm text-[#AAA89F]">Your answers help RouteMaster construct your initial route.</p>
         </motion.div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-[#A96A5F]/10 border border-[#A96A5F]/40 rounded-xl text-xs text-[#A96A5F] flex items-center gap-2">
+            <AlertCircle size={14} className="flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         {/* Progress dots */}
         <div className="flex items-center justify-center gap-2 mb-8">
@@ -160,15 +188,30 @@ export default function Profile() {
               <>
                 <div>
                   <label className="label block mb-2">Full Name</label>
-                  <input value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Your name" />
+                  <input
+                    value={form.name}
+                    onChange={(e) => update('name', e.target.value)}
+                    placeholder="Your name"
+                    className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
+                  />
                 </div>
                 <div>
                   <label className="label block mb-2">Education</label>
-                  <input value={form.education} onChange={(e) => update('education', e.target.value)} placeholder="e.g. B.Tech Computer Science" />
+                  <input
+                    value={form.education}
+                    onChange={(e) => update('education', e.target.value)}
+                    placeholder="e.g. B.Tech Computer Science"
+                    className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
+                  />
                 </div>
                 <div>
                   <label className="label block mb-2">Branch / Specialization</label>
-                  <input value={form.branch} onChange={(e) => update('branch', e.target.value)} placeholder="e.g. Computer Science" />
+                  <input
+                    value={form.branch}
+                    onChange={(e) => update('branch', e.target.value)}
+                    placeholder="e.g. Computer Science"
+                    className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
+                  />
                 </div>
                 <div>
                   <label className="label block mb-2">Experience Level</label>
@@ -189,11 +232,22 @@ export default function Profile() {
                 </div>
                 <div>
                   <label className="label block mb-2">Notable Projects (optional)</label>
-                  <textarea value={form.projects} onChange={(e) => update('projects', e.target.value)} placeholder="Describe any projects you've built..." rows={3} className="resize-none" />
+                  <textarea
+                    value={form.projects}
+                    onChange={(e) => update('projects', e.target.value)}
+                    placeholder="Describe any projects you've built..."
+                    rows={3}
+                    className="w-full bg-[#171714] border border-[#383832] rounded-lg p-3 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none resize-none"
+                  />
                 </div>
                 <div>
                   <label className="label block mb-2">Certifications (optional)</label>
-                  <input value={form.certifications} onChange={(e) => update('certifications', e.target.value)} placeholder="e.g. AWS Cloud Practitioner" />
+                  <input
+                    value={form.certifications}
+                    onChange={(e) => update('certifications', e.target.value)}
+                    placeholder="e.g. AWS Cloud Practitioner"
+                    className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
+                  />
                 </div>
               </>
             )}
@@ -202,7 +256,12 @@ export default function Profile() {
               <>
                 <div>
                   <label className="label block mb-2">Target Career</label>
-                  <input value={form.targetCareer} onChange={(e) => update('targetCareer', e.target.value)} placeholder="e.g. AI / ML Engineer" />
+                  <input
+                    value={form.targetCareer}
+                    onChange={(e) => update('targetCareer', e.target.value)}
+                    placeholder="e.g. AI / ML Engineer"
+                    className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
+                  />
                 </div>
                 <div>
                   <label className="label block mb-2">Weekly Learning Hours</label>

@@ -8,11 +8,28 @@ export const authService = {
       password,
       confirm_password: confirmPassword,
     });
+    if (res.data?.token) {
+      localStorage.setItem('rm_token', res.data.token);
+      localStorage.setItem('rm_user', JSON.stringify(res.data.user));
+    }
     return res.data;
   },
 
   async login({ email, password }) {
     const res = await client.post('/auth/login', { email, password });
+    if (res.data?.token) {
+      localStorage.setItem('rm_token', res.data.token);
+      localStorage.setItem('rm_user', JSON.stringify(res.data.user));
+    }
+    return res.data;
+  },
+
+  async refreshToken() {
+    const res = await client.post('/auth/refresh');
+    if (res.data?.token) {
+      localStorage.setItem('rm_token', res.data.token);
+      localStorage.setItem('rm_user', JSON.stringify(res.data.user));
+    }
     return res.data;
   },
 
@@ -25,7 +42,7 @@ export const authService = {
     try {
       await client.post('/auth/logout');
     } catch {
-      // Ignore — client-side cleanup always happens
+      // Client-side cleanup continues even if logout network request fails
     }
     localStorage.removeItem('rm_token');
     localStorage.removeItem('rm_user');

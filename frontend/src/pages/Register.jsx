@@ -73,7 +73,7 @@ export default function Register() {
     setErrors({});
     setLoading(true);
     try {
-      const data = await register(form);
+      await register(form);
       // Always go to onboarding after registration
       navigate('/onboarding', { replace: true });
     } catch (err) {

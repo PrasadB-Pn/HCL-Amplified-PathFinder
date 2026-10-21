@@ -7,7 +7,16 @@ _client: AsyncIOMotorClient | None = None
 def get_client() -> AsyncIOMotorClient:
     global _client
     if _client is None:
-        _client = AsyncIOMotorClient(settings.mongodb_uri)
+        if settings.mongodb_uri.startswith(("mongomock://", "mock://")):
+            if settings.is_production:
+                raise ValueError("In-memory/mock MongoDB cannot be used in production environment.")
+            try:
+                from mongomock_motor import AsyncMongoMockClient
+                _client = AsyncMongoMockClient()
+            except ImportError as err:
+                raise RuntimeError("mongomock-motor must be installed to use mongomock URI in development.") from err
+        else:
+            _client = AsyncIOMotorClient(settings.mongodb_uri)
     return _client
 
 

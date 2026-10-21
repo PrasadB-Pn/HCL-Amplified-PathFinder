@@ -105,7 +105,7 @@ export default function Onboarding() {
     setError('');
     try {
       // Save profile to FastAPI
-      const profileRes = await client.put('/users/me', {
+      await client.put('/users/me', {
         ...form,
         onboarding_completed: true,
       });

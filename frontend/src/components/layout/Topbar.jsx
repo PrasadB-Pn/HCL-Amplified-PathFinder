@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell, LogOut, User, Settings } from 'lucide-react';
+import { Search, Bell, LogOut, Settings } from 'lucide-react';
 import { IconButton } from '../common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';

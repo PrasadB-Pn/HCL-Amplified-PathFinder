@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Map, Zap, BookOpen, Wrench,
-  TrendingUp, Bot, Settings, HelpCircle, ChevronRight,
+  TrendingUp, Bot, Settings, ChevronRight,
   LogOut, User
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';

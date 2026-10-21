@@ -1,9 +1,12 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
+from bson import ObjectId
+
 from app.dependencies import get_current_user
 from app.schemas.user import UserProfileUpdate, UserProfileResponse, LearningPreferencesUpdate
 from app.database import get_collection
-from bson import ObjectId
-from datetime import datetime
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -45,7 +48,7 @@ async def update_profile(
         existing_prefs.update({k: v for k, v in update_fields["learning_preferences"].items() if v is not None})
         update_fields["learning_preferences"] = existing_prefs
 
-    update_fields["updated_at"] = datetime.utcnow()
+    update_fields["updated_at"] = datetime.now(timezone.utc)
 
     await users.update_one(
         {"_id": ObjectId(str(current_user["_id"]))},
@@ -68,10 +71,10 @@ async def update_preferences(
 ):
     users = get_collection("users")
     prefs = current_user.get("learning_preferences", {})
-    prefs.update({k: v for k, v in data.model_dump().items() if v is not None})
+    prefs.update({k: v for k, v in data.model_dump(exclude_none=True).items() if v is not None})
 
     await users.update_one(
         {"_id": ObjectId(str(current_user["_id"]))},
-        {"$set": {"learning_preferences": prefs, "updated_at": datetime.utcnow()}},
+        {"$set": {"learning_preferences": prefs, "updated_at": datetime.now(timezone.utc)}},
     )
     return prefs

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Check, User, BookOpen, Shield, ChevronRight } from 'lucide-react';
 import { Button } from '../components/common/Button';
-import { mockProfile } from '../data/mockData';
 import { useAuth } from '../context/AuthContext';
 import client from '../services/api';
 
@@ -18,6 +17,7 @@ function SelectGroup({ options, value, onChange }) {
       {options.map((opt) => (
         <button
           key={opt}
+          type="button"
           onClick={() => onChange(opt)}
           className={`px-4 py-2 text-sm rounded-lg border transition-all cursor-pointer ${
             value === opt
@@ -45,40 +45,57 @@ function SectionHeader({ icon: Icon, label }) {
 export default function Settings() {
   const navigate = useNavigate();
   const { currentUser, logout, updateUser } = useAuth();
-  const [profile, setProfile] = useState({
-    ...mockProfile,
-    ...(currentUser || {}),
+  const [profile, setProfile] = useState(() => ({
+    name: currentUser?.name || '',
+    email: currentUser?.email || '',
+    experience: currentUser?.experience || 'Intermediate',
+    currentGoal: currentUser?.target_career || '',
     learningStyle: currentUser?.learning_preferences?.style || 'Project-based',
     weeklyHours: `${currentUser?.weekly_learning_hours || 7} hrs / week`,
     pace: currentUser?.learning_preferences?.pace || 'Balanced',
     contentPreference: currentUser?.learning_preferences?.content || 'Mixed',
-    currentGoal: currentUser?.target_career || 'AI / ML Engineer',
-  });
+    interests: currentUser?.interests || [],
+  }));
+
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const update = (field, value) => setProfile((p) => ({ ...p, [field]: value }));
 
   const handleSave = async () => {
     setSaving(true);
+    setError(null);
     try {
+      const hoursNum = parseInt(profile.weeklyHours, 10) || 7;
       await client.put('/users/me', {
         name: profile.name,
         target_career: profile.currentGoal,
         experience: profile.experience,
+        weekly_learning_hours: hoursNum,
         learning_preferences: {
           style: profile.learningStyle,
           pace: profile.pace,
           content: profile.contentPreference,
-          weekly_hours: parseInt(profile.weeklyHours) || 7,
+          weekly_hours: hoursNum,
         },
       });
-      updateUser({ name: profile.name, target_career: profile.currentGoal });
+      updateUser({
+        name: profile.name,
+        target_career: profile.currentGoal,
+        experience: profile.experience,
+        weekly_learning_hours: hoursNum,
+        learning_preferences: {
+          style: profile.learningStyle,
+          pace: profile.pace,
+          content: profile.contentPreference,
+          weekly_hours: hoursNum,
+        },
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -98,6 +115,12 @@ export default function Settings() {
         <p className="text-[#AAA89F]">Manage your profile and the preferences RouteMaster uses to personalize your learning journey.</p>
       </motion.div>
 
+      {error && (
+        <div className="mb-6 p-4 bg-[#A96A5F]/10 border border-[#A96A5F]/40 rounded-xl text-xs text-[#A96A5F]">
+          {error}
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Left: Form */}
         <div className="lg:col-span-2 space-y-10">
@@ -107,11 +130,20 @@ export default function Settings() {
             <div className="space-y-5">
               <div>
                 <label className="label block mb-2">Full Name</label>
-                <input value={profile.name} onChange={(e) => update('name', e.target.value)} />
+                <input
+                  className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
+                  value={profile.name}
+                  onChange={(e) => update('name', e.target.value)}
+                />
               </div>
               <div>
                 <label className="label block mb-2">Email</label>
-                <input value={profile.email} onChange={(e) => update('email', e.target.value)} type="email" />
+                <input
+                  className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#77766F] cursor-not-allowed"
+                  value={profile.email}
+                  disabled
+                  type="email"
+                />
               </div>
               <div>
                 <label className="label block mb-2">Experience Level</label>
@@ -123,7 +155,11 @@ export default function Settings() {
               </div>
               <div>
                 <label className="label block mb-2">Current Goal</label>
-                <input value={profile.currentGoal} onChange={(e) => update('currentGoal', e.target.value)} />
+                <input
+                  className="w-full bg-[#171714] border border-[#383832] rounded-lg px-4 py-2.5 text-sm text-[#F3F0E8] focus:border-[#C89B5B] focus:outline-none"
+                  value={profile.currentGoal}
+                  onChange={(e) => update('currentGoal', e.target.value)}
+                />
               </div>
             </div>
           </section>
@@ -162,25 +198,13 @@ export default function Settings() {
           <section>
             <SectionHeader icon={Shield} label="Account" />
             <div className="space-y-2">
-              {['Change email', 'Change password'].map((action) => (
-                <button
-                  key={action}
-                  className="w-full flex items-center justify-between px-4 py-3 border border-[#383832] rounded-lg text-sm text-[#AAA89F] hover:text-[#F3F0E8] hover:border-[#C89B5B]/30 transition-colors cursor-pointer text-left"
-                >
-                  {action}
-                  <ChevronRight size={13} className="text-[#77766F]" />
-                </button>
-              ))}
               <button
+                type="button"
                 onClick={handleLogout}
                 className="w-full flex items-center justify-between px-4 py-3 border border-[#383832] rounded-lg text-sm text-[#AAA89F] hover:text-[#F3F0E8] hover:border-[#C89B5B]/30 transition-colors cursor-pointer text-left"
               >
                 Sign out
                 <ChevronRight size={13} className="text-[#77766F]" />
-              </button>
-              <button className="w-full flex items-center justify-between px-4 py-3 border border-[#A96A5F]/30 rounded-lg text-sm text-[#A96A5F] hover:bg-[#A96A5F]/5 transition-colors cursor-pointer">
-                Delete account
-                <ChevronRight size={13} />
               </button>
             </div>
           </section>
@@ -196,9 +220,9 @@ export default function Settings() {
             <div className="label mb-4 text-[#C89B5B]">Current Personalization</div>
             <div className="border border-[#383832] rounded-xl divide-y divide-[#383832]">
               {[
-                { label: 'Goal', value: profile.currentGoal },
+                { label: 'Goal', value: profile.currentGoal || 'None set' },
                 { label: 'Level', value: profile.experience },
-                { label: 'Interests', value: profile.interests?.join(' · ') },
+                { label: 'Interests', value: profile.interests?.join(' · ') || 'None specified' },
                 { label: 'Learning style', value: profile.learningStyle },
                 { label: 'Time available', value: profile.weeklyHours },
                 { label: 'Pace', value: profile.pace },
@@ -210,7 +234,7 @@ export default function Settings() {
               ))}
             </div>
             <p className="text-xs text-[#77766F] mt-4 leading-relaxed">
-              These preferences shape your route.
+              These preferences shape your learning route.
             </p>
           </div>
         </div>

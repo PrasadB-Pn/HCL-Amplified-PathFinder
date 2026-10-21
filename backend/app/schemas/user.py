@@ -1,25 +1,27 @@
-from pydantic import BaseModel
+from __future__ import annotations
+
 from typing import Optional, List
+from pydantic import BaseModel, Field
 
 
 class LearningPreferencesUpdate(BaseModel):
-    style: Optional[str] = None
-    pace: Optional[str] = None
-    content: Optional[str] = None
-    weekly_hours: Optional[int] = None
+    style: Optional[str] = Field(default=None, max_length=100)
+    pace: Optional[str] = Field(default=None, max_length=100)
+    content: Optional[str] = Field(default=None, max_length=100)
+    weekly_hours: Optional[int] = Field(default=None, ge=1, le=168)
 
 
 class UserProfileUpdate(BaseModel):
-    name: Optional[str] = None
-    education: Optional[str] = None
-    branch: Optional[str] = None
-    experience: Optional[str] = None
-    skills: Optional[List[str]] = None
-    interests: Optional[List[str]] = None
-    projects: Optional[str] = None
-    certifications: Optional[str] = None
-    target_career: Optional[str] = None
-    weekly_learning_hours: Optional[int] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    education: Optional[str] = Field(default=None, max_length=200)
+    branch: Optional[str] = Field(default=None, max_length=200)
+    experience: Optional[str] = Field(default=None, max_length=100)
+    skills: Optional[List[str]] = Field(default=None, max_length=50)
+    interests: Optional[List[str]] = Field(default=None, max_length=50)
+    projects: Optional[str] = Field(default=None, max_length=2000)
+    certifications: Optional[str] = Field(default=None, max_length=2000)
+    target_career: Optional[str] = Field(default=None, max_length=200)
+    weekly_learning_hours: Optional[int] = Field(default=None, ge=1, le=168)
     onboarding_completed: Optional[bool] = None
     learning_preferences: Optional[LearningPreferencesUpdate] = None
 

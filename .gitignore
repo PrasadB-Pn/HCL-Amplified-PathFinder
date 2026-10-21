@@ -13,8 +13,12 @@ venv/
 env/
 ENV/
 .env
-.env.*
 !.env.example
+!.env.example.*
+!*.env.example
+!frontend/.env.example
+!frontend/.env.production
+!backend/.env.example
 
 # Python packaging
 *.egg-info/

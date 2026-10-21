@@ -1,16 +1,18 @@
 import client from './api';
 import { mockProjects } from '../data/mockData';
 
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const isDemo = () => import.meta.env.VITE_DEMO_MODE === 'true';
 
 export const projectService = {
   async getProjects() {
     try {
       const res = await client.get('/projects');
       return res.data;
-    } catch {
-      await delay(300);
-      return mockProjects;
+    } catch (err) {
+      if (isDemo()) {
+        return mockProjects;
+      }
+      throw err;
     }
   },
 
@@ -18,9 +20,12 @@ export const projectService = {
     try {
       const res = await client.get(`/projects/${id}`);
       return res.data;
-    } catch {
-      await delay(200);
-      return mockProjects.find((p) => p.id === id) || mockProjects[0];
+    } catch (err) {
+      if (isDemo()) {
+        const found = mockProjects.find((p) => p.id === id) || mockProjects[0];
+        if (found) return found;
+      }
+      throw err;
     }
   },
 
@@ -28,9 +33,11 @@ export const projectService = {
     try {
       const res = await client.get('/projects/recommended');
       return res.data;
-    } catch {
-      await delay(200);
-      return mockProjects.filter((p) => p.status === 'recommended');
+    } catch (err) {
+      if (isDemo()) {
+        return mockProjects.filter((p) => p.status === 'recommended');
+      }
+      throw err;
     }
   },
 };

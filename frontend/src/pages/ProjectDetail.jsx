@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Clock, BarChart2, Check, Circle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Check, Circle } from 'lucide-react';
 import { StatusBadge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
-import { LoadingState } from '../components/common/States';
+import { LoadingState, ErrorState } from '../components/common/States';
 import { projectService } from '../services/projectService';
 
 export default function ProjectDetail() {
@@ -12,23 +12,48 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
     (async () => {
-      const data = await projectService.getProjectById(projectId);
-      setProject(data);
-      setLoading(false);
+      try {
+        const data = await projectService.getProjectById(projectId);
+        if (mounted) {
+          setProject(data);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err.message || 'Failed to load project details');
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     })();
+    return () => {
+      mounted = false;
+    };
   }, [projectId]);
 
   const handleStart = async () => {
     setStarting(true);
-    await projectService.startProject(projectId);
-    setStarting(false);
+    try {
+      if (projectService.startProject) {
+        await projectService.startProject(projectId);
+      }
+      setProject((prev) => (prev ? { ...prev, status: 'current' } : prev));
+    } catch {
+      // Continue without breaking UI flow
+    } finally {
+      setStarting(false);
+    }
   };
 
   if (loading) return <LoadingState message="Loading project..." />;
+  if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
@@ -60,12 +85,13 @@ export default function ProjectDetail() {
           <div>
             <div className="label mb-1">Estimated</div>
             <div className="text-sm text-[#F3F0E8] flex items-center gap-1">
-              <Clock size={12} />{project?.estimatedHours}h
+              <Clock size={12} />
+              {project?.estimatedHours || project?.estimated_hours || 4}h
             </div>
           </div>
           <div>
             <div className="label mb-1">Route Stage</div>
-            <div className="text-sm text-[#F3F0E8]">{project?.stage}</div>
+            <div className="text-sm text-[#F3F0E8]">{project?.stage || 'Active'}</div>
           </div>
         </div>
 
@@ -74,24 +100,22 @@ export default function ProjectDetail() {
           <div className="border border-[#C89B5B]/20 bg-[#C89B5B]/5 rounded-xl p-5 mb-8">
             <div className="label text-[#C89B5B] mb-2">Why This Project?</div>
             <p className="text-sm text-[#AAA89F] leading-relaxed">{project.why}</p>
-            <div className="mt-3 space-y-1">
-              {['Machine Learning', 'Feature Engineering', 'Model Evaluation'].map((s) => (
-                <div key={s} className="flex items-center gap-2">
-                  <ArrowRight size={11} className="text-[#C89B5B]" />
-                  <span className="text-xs text-[#AAA89F]">Builds: {s}</span>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
         {/* Skills */}
-        <div className="mb-8">
-          <div className="label mb-3">Skills You'll Use</div>
-          <div className="flex flex-wrap gap-2">
-            {project?.skills?.map((s) => <span key={s} className="tag">{s}</span>)}
+        {project?.skills?.length > 0 && (
+          <div className="mb-8">
+            <div className="label mb-3">Skills You'll Use</div>
+            <div className="flex flex-wrap gap-2">
+              {project.skills.map((s) => (
+                <span key={s} className="tag">
+                  {s}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Milestones */}
         {project?.milestones && (
@@ -105,20 +129,28 @@ export default function ProjectDetail() {
                   ) : (
                     <Circle size={13} className="text-[#383832]" />
                   )}
-                  <span className={`text-sm ${m.done ? 'text-[#77766F] line-through' : 'text-[#AAA89F]'}`}>{m.title}</span>
+                  <span className={`text-sm ${m.done ? 'text-[#77766F] line-through' : 'text-[#AAA89F]'}`}>
+                    {m.title}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <Button
-          icon={<ArrowRight size={14} />}
-          onClick={handleStart}
-          loading={starting}
-        >
-          {project?.status === 'current' ? 'Continue Project' : 'Start Project'}
-        </Button>
+        <div className="flex gap-3">
+          <Button icon={<ArrowRight size={14} />} onClick={handleStart} loading={starting}>
+            {project?.status === 'current' ? 'Continue Project' : 'Start Project'}
+          </Button>
+          {project?.url && (
+            <Button
+              variant="secondary"
+              onClick={() => window.open(project.url, '_blank', 'noopener,noreferrer')}
+            >
+              View Repository
+            </Button>
+          )}
+        </div>
       </motion.div>
     </div>
   );

@@ -75,16 +75,17 @@ class AIService:
             raise AIServiceError("No career could be resolved for this profile")
         return recommendations[0]["career"]
 
-    def career_recommendations(self, user: dict, overrides: dict[str, Any]) -> list[dict]:
+    def career_recommendations(self, user: dict, overrides: dict[str, Any] | None = None) -> list[dict]:
         profile_user = dict(user)
-        for field in ("target_career", "skills", "interests"):
-            if overrides.get(field) is not None:
-                profile_user[field] = overrides[field]
+        if overrides:
+            for field in ("target_career", "skills", "interests"):
+                if overrides.get(field) is not None:
+                    profile_user[field] = overrides[field]
         try:
             result = self._career_engine().recommend(self._profile(profile_user), top_k=4)
             careers = {c["career_id"]: c for c in self._career_engine().careers_list}
             return [{"id": record["career_id"], "title": record["career"], "match": round(record["match_score"]),
-                     "is_primary": index == 0, "reasons": [record["explanation"]],
+                     "is_primary": index == 0, "isPrimary": index == 0, "reasons": [record["explanation"]],
                      "description": careers.get(record["career_id"], {}).get("career_description") or record["explanation"]}
                     for index, record in enumerate(result["recommendations"])]
         except Exception as exc:
@@ -98,9 +99,15 @@ class AIService:
                 current_skills=user.get("skills") or [], target_career=self._canonical_target(user, target))).model_dump()
             gaps = [{"skill": item["skill_name"], "current": 0, "required": 100, "gap": 100, "priority": priority}
                     for priority, items in report["priority_gaps"].items() for item in items]
-            report.update({"current_skills": [s["skill_name"] for s in report["matched_technical_skills"]],
-                           "required_skills": [s["skill_name"] for s in report["matched_technical_skills"] + report["missing_technical_skills"]],
-                           "skill_gaps": gaps})
+            report.update({
+                "target_career": report.get("target_career_title", target or ""),
+                "matching_skills": [s["skill_name"] for s in report["matched_technical_skills"]],
+                "missing_skills": [s["skill_name"] for s in report["missing_technical_skills"]],
+                "match_percentage": round(report.get("technical_match_percentage", 0)),
+                "current_skills": [s["skill_name"] for s in report["matched_technical_skills"]],
+                "required_skills": [s["skill_name"] for s in report["matched_technical_skills"] + report["missing_technical_skills"]],
+                "skill_gaps": gaps,
+            })
             return report
         except Exception as exc:
             logger.exception("Skill gap engine failed")

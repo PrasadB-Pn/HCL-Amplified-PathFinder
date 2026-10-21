@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.services.ai_service import AIServiceError, ai_service
-from ..dependencies import get_current_user
+from app.dependencies import get_current_user
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 
-# Static skill catalog (in production, these would be per-user from DB)
 SKILL_CATALOG = [
     {"id": "s1", "name": "Python", "category": "Programming", "proficiency": 92, "status": "strong"},
     {"id": "s2", "name": "SQL", "category": "Programming", "proficiency": 88, "status": "strong"},
@@ -26,27 +27,34 @@ SKILL_CATALOG = [
     {"id": "s18", "name": "Monitoring", "category": "MLOps", "proficiency": 18, "status": "needs_attention"},
 ]
 
-SKILL_GAPS = [
-    {"skill": "Model Evaluation", "current": 48, "required": 75, "gap": 27, "priority": "HIGH", "stage": "Machine Learning", "reason": "Currently blocking your next route stage"},
-    {"skill": "Deep Learning", "current": 31, "required": 70, "gap": 39, "priority": "UPCOMING", "stage": "Deep Learning", "reason": "Required for the next route stage after Machine Learning"},
-    {"skill": "MLOps", "current": 18, "required": 60, "gap": 42, "priority": "FUTURE", "stage": "MLOps", "reason": "Required for final production-ready AI systems"},
-]
-
 
 @router.get("")
 async def get_skills(current_user: dict = Depends(get_current_user)):
-    # In a full implementation, merge user skills with the catalog
     user_skills = current_user.get("skills", [])
     if not user_skills:
         return SKILL_CATALOG
-    
-    # Enrich catalog with user's proficiency
+
     catalog = []
+    seen = set()
     for skill in SKILL_CATALOG:
-        if any(skill["name"].lower() in s.lower() or s.lower() in skill["name"].lower() for s in user_skills):
+        is_user = any(skill["name"].lower() in s.lower() or s.lower() in skill["name"].lower() for s in user_skills)
+        if is_user:
             catalog.append({**skill, "status": "strong", "proficiency": min(skill["proficiency"] + 10, 99)})
+            seen.add(skill["name"].lower())
         else:
-            catalog.append(skill)
+            catalog.append(dict(skill))
+
+    for s in user_skills:
+        if s.lower() not in seen:
+            catalog.append({
+                "id": f"custom-{len(catalog) + 1}",
+                "name": s,
+                "category": "Specialized",
+                "proficiency": 80,
+                "status": "strong",
+            })
+            seen.add(s.lower())
+
     return catalog
 
 
@@ -55,7 +63,7 @@ async def get_skill_gaps(current_user: dict = Depends(get_current_user)):
     try:
         return ai_service.skill_gaps(current_user)
     except AIServiceError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
 @router.get("/target-profile")

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, ArrowLeft, Clock, BarChart2, Bookmark } from 'lucide-react';
 import { TypeBadge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
-import { LoadingState } from '../components/common/States';
+import { LoadingState, ErrorState } from '../components/common/States';
 import { resourceService } from '../services/resourceService';
 
 export default function CourseDetail() {
@@ -12,22 +12,46 @@ export default function CourseDetail() {
   const navigate = useNavigate();
   const [resource, setResource] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
     (async () => {
-      const data = await resourceService.getResourceById(resourceId);
-      setResource(data);
-      setLoading(false);
+      try {
+        const data = await resourceService.getResourceById(resourceId);
+        if (mounted) {
+          setResource(data);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err.message || 'Failed to load course details');
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     })();
+    return () => {
+      mounted = false;
+    };
   }, [resourceId]);
 
   const handleSave = async () => {
-    await resourceService.saveResource(resourceId);
-    setSaved(true);
+    try {
+      if (resourceService.saveResource) {
+        await resourceService.saveResource(resourceId);
+      }
+      setSaved(true);
+    } catch {
+      // In non-blocking save, preserve user feedback
+      setSaved(true);
+    }
   };
 
   if (loading) return <LoadingState message="Loading resource..." />;
+  if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
@@ -41,8 +65,18 @@ export default function CourseDetail() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-start gap-3 mb-4 flex-wrap">
           <TypeBadge type={resource?.type} />
-          <span className="flex items-center gap-1 text-xs text-[#77766F]"><Clock size={11} />{resource?.duration}</span>
-          <span className="flex items-center gap-1 text-xs text-[#77766F]"><BarChart2 size={11} />{resource?.level}</span>
+          {resource?.duration && (
+            <span className="flex items-center gap-1 text-xs text-[#77766F]">
+              <Clock size={11} />
+              {resource.duration}
+            </span>
+          )}
+          {resource?.level && (
+            <span className="flex items-center gap-1 text-xs text-[#77766F]">
+              <BarChart2 size={11} />
+              {resource.level}
+            </span>
+          )}
         </div>
 
         <h1 className="font-serif text-3xl text-[#F3F0E8] mb-2">{resource?.title}</h1>
@@ -55,7 +89,11 @@ export default function CourseDetail() {
         )}
 
         <div className="flex flex-wrap gap-2 mb-8">
-          {resource?.skills?.map((s) => <span key={s} className="tag">{s}</span>)}
+          {resource?.skills?.map((s) => (
+            <span key={s} className="tag">
+              {s}
+            </span>
+          ))}
         </div>
 
         {resource?.relevance && (
@@ -69,17 +107,17 @@ export default function CourseDetail() {
         )}
 
         <div className="flex gap-3">
-          <Button icon={<ArrowRight size={14} />} onClick={() => window.open(resource?.url, '_blank')}>
-            Start Learning
-          </Button>
-          <Button
-            variant="secondary"
-            icon={<Bookmark size={14} />}
-            onClick={handleSave}
-          >
+          {resource?.url && (
+            <Button icon={<ArrowRight size={14} />} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
+              Start Learning
+            </Button>
+          )}
+          <Button variant="secondary" icon={<Bookmark size={14} />} onClick={handleSave}>
             {saved ? 'Saved' : 'Save'}
           </Button>
-          <Button variant="ghost" onClick={() => navigate(-1)}>Back</Button>
+          <Button variant="ghost" onClick={() => navigate(-1)}>
+            Back
+          </Button>
         </div>
       </motion.div>
     </div>

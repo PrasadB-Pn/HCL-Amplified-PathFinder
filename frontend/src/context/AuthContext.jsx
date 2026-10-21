@@ -4,52 +4,56 @@ import { authService } from '../services/authService';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const cached = localStorage.getItem('rm_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      localStorage.removeItem('rm_user');
+      return null;
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Restore session from localStorage
+  // Restore session: validates via authService.getMe() (works with Bearer or HttpOnly cookie)
   useEffect(() => {
-    const token = localStorage.getItem('rm_token');
-    const cached = localStorage.getItem('rm_user');
-    if (token && cached) {
-      try {
-        setCurrentUser(JSON.parse(cached));
-      } catch {
+    authService.getMe()
+      .then((user) => {
+        setCurrentUser(user);
+        localStorage.setItem('rm_user', JSON.stringify(user));
+      })
+      .catch(() => {
+        localStorage.removeItem('rm_token');
         localStorage.removeItem('rm_user');
-      }
-      // Verify token is still valid
-      authService.getMe()
-        .then((user) => {
-          setCurrentUser(user);
-          localStorage.setItem('rm_user', JSON.stringify(user));
-        })
-        .catch(() => {
-          localStorage.removeItem('rm_token');
-          localStorage.removeItem('rm_user');
-          setCurrentUser(null);
-        })
-        .finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
+        setCurrentUser(null);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async ({ email, password }) => {
     setError(null);
     const data = await authService.login({ email, password });
-    localStorage.setItem('rm_token', data.token);
-    localStorage.setItem('rm_user', JSON.stringify(data.user));
-    setCurrentUser(data.user);
-    return data; // includes onboarding_completed
+    if (data.token) {
+      localStorage.setItem('rm_token', data.token);
+    }
+    if (data.user) {
+      localStorage.setItem('rm_user', JSON.stringify(data.user));
+      setCurrentUser(data.user);
+    }
+    return data;
   }, []);
 
   const register = useCallback(async ({ name, email, password, confirmPassword }) => {
     setError(null);
     const data = await authService.register({ name, email, password, confirmPassword });
-    localStorage.setItem('rm_token', data.token);
-    localStorage.setItem('rm_user', JSON.stringify(data.user));
-    setCurrentUser(data.user);
+    if (data.token) {
+      localStorage.setItem('rm_token', data.token);
+    }
+    if (data.user) {
+      localStorage.setItem('rm_user', JSON.stringify(data.user));
+      setCurrentUser(data.user);
+    }
     return data;
   }, []);
 
@@ -100,6 +104,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
   return ctx;
 }
